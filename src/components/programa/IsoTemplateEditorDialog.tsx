@@ -8,7 +8,7 @@ import { Plus, Trash2, ArrowUp, ArrowDown, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { formatSupabaseError } from "@/lib/supabaseError";
 import type { IsoMinisterioTemplate } from "@/lib/isoMinisterioTemplates";
-import { findIsoTemplate } from "@/lib/isoMinisterioTemplates";
+import { findIsoTemplate, isEstacionTextoPorDefecto } from "@/lib/isoMinisterioTemplates";
 import { useUpsertIsoTemplate, useDeleteIsoTemplate } from "@/hooks/useIsoTemplates";
 import type { ProgMinisterio } from "@/hooks/usePrograma";
 import { usePersonas } from "@/hooks/useDatabase";
@@ -223,30 +223,37 @@ export default function IsoTemplateEditorDialog({ open, onOpenChange, ministerio
           <section className="space-y-2">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-semibold">Estaciones de texto libre</h4>
+                <h4 className="text-sm font-semibold">Estaciones de texto libre (Digitar)</h4>
                 <p className="text-xs text-muted-foreground">
-                  Marca las columnas que deben llenarse como texto libre en lugar de asignar una persona.
+                  Marca las columnas que deben llenarse digitando texto libre en lugar de buscar una persona. Columnas como Texto, Alabanza, Dinámica, Decoración, Objetivo y Refrigerio se configuran automáticamente como texto libre.
                 </p>
               </div>
             </div>
             <div className="grid gap-2">
               {form.estaciones.map((est) => {
-                const selected = (form.estacionesTexto || []).includes(est);
+                const isAutoText = isEstacionTextoPorDefecto(est);
+                const selected = (form.estacionesTexto || []).includes(est) || isAutoText;
                 return (
                   <button
                     key={est}
                     type="button"
                     className={`w-full rounded-md border px-3 py-2 text-left text-sm transition ${selected ? "border-primary bg-primary/10" : "border-border bg-background hover:border-primary/80"}`}
                     onClick={() => {
-                      const next = selected
-                        ? (form.estacionesTexto || []).filter((e) => e !== est)
-                        : [...(form.estacionesTexto || []), est];
+                      const currentlySelected = (form.estacionesTexto || []).includes(est) || isAutoText;
+                      let next: string[];
+                      if (currentlySelected) {
+                        next = (form.estacionesTexto || []).filter((e) => e !== est);
+                      } else {
+                        next = [...(form.estacionesTexto || []), est];
+                      }
                       setF("estacionesTexto", next);
                     }}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span>{est}</span>
-                      <span className="text-xs text-muted-foreground">{selected ? "Texto libre" : "Persona"}</span>
+                      <span className="font-medium">{est}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded ${selected ? "bg-primary text-primary-foreground font-semibold" : "text-muted-foreground"}`}>
+                        {selected ? "✓ Digitar (Texto libre)" : "Buscar persona en BD"}
+                      </span>
                     </div>
                   </button>
                 );

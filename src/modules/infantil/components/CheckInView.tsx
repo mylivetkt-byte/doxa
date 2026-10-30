@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   QrCode, Search, UserCheck, ShieldCheck, AlertTriangle,
   LogIn, LogOut, Printer, Shirt, CheckCircle2, X
@@ -19,7 +20,12 @@ import {
 } from "@/hooks/useInfantil";
 import { usePersonas } from "@/hooks/useDatabase";
 import { useNinos, matchInfantilGrupoByAge, getSavedInfantilGrupoMap, saveInfantilGrupoForNino } from "../hooks/useNinos";
-import { ShirtStickerComponent, ParentClaimTagComponent, extractNinoIdentifierFromQr } from "./CarnesView";
+import {
+  ShirtStickerComponent,
+  ParentClaimTagComponent,
+  extractNinoIdentifierFromQr,
+  printEtiquetas10x5cm
+} from "./CarnesView";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import QrEventoScanner from "@/components/attendance/QrEventoScanner";
@@ -198,7 +204,7 @@ export default function CheckInView() {
 
       if (autoPrint) {
         setTimeout(() => {
-          window.print();
+          printEtiquetas10x5cm();
         }, 200);
       } else {
         setCheckInDialogOpen(true);
@@ -293,7 +299,7 @@ export default function CheckInView() {
   };
 
   const printStickerNow = () => {
-    window.print();
+    printEtiquetas10x5cm();
   };
 
   // Acudientes autorizados para el niño que se retira
@@ -382,6 +388,14 @@ export default function CheckInView() {
                       fecha={fechaHoyTexto}
                       compact
                     />
+                    {incluirTalonPadre && (
+                      <ParentClaimTagComponent
+                        nino={previewNinoEntrada}
+                        acudiente={(acudientes || []).find(a => a.nino_id === previewNinoEntrada.id)}
+                        grupo={resolveChildInfantilGrupo(previewNinoEntrada)}
+                        fecha={fechaHoyTexto}
+                      />
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 text-xs">
@@ -638,7 +652,7 @@ export default function CheckInView() {
 
           {checkedInNino && (
             <div className="px-6 py-2 flex flex-col items-center">
-              <div className="printable-checkin-preview scale-90 -my-2 origin-top">
+              <div className="printable-checkin-preview scale-90 -my-2 origin-top space-y-2">
                 <ShirtStickerComponent
                   nino={checkedInNino}
                   acudiente={(acudientes || []).find(a => a.nino_id === checkedInNino.id)}
@@ -646,6 +660,14 @@ export default function CheckInView() {
                   fecha={fechaHoyTexto}
                   compact
                 />
+                {incluirTalonPadre && (
+                  <ParentClaimTagComponent
+                    nino={checkedInNino}
+                    acudiente={(acudientes || []).find(a => a.nino_id === checkedInNino.id)}
+                    grupo={checkedInGrupo || grupoActivo}
+                    fecha={fechaHoyTexto}
+                  />
+                )}
               </div>
             </div>
           )}
@@ -737,58 +759,129 @@ export default function CheckInView() {
         </DialogContent>
       </Dialog>
 
-      {/* ÁREA DE IMPRESIÓN RÁPIDA DE STICKER (Solo visible en @media print) */}
-      <div className="hidden print:block printable-area">
-        {(checkedInNino || previewNinoEntrada) && (
-          <div className="print-duo-container space-y-4">
+      {/* PORTAL DE IMPRESIÓN DIRECTO AL BODY (Evita desbordamiento y división entre etiquetas) */}
+      {typeof document !== "undefined" && (checkedInNino || previewNinoEntrada) && createPortal(
+        <div id="doxa-thermal-print-area">
+          <div className="thermal-label-page">
             <ShirtStickerComponent
               nino={checkedInNino || previewNinoEntrada}
               acudiente={(acudientes || []).find(a => a.nino_id === (checkedInNino || previewNinoEntrada).id)}
               grupo={checkedInGrupo || resolveChildInfantilGrupo(checkedInNino || previewNinoEntrada)}
               fecha={fechaHoyTexto}
             />
-            {incluirTalonPadre && (
+          </div>
+          {incluirTalonPadre && (
+            <div className="thermal-label-page">
               <ParentClaimTagComponent
                 nino={checkedInNino || previewNinoEntrada}
                 acudiente={(acudientes || []).find(a => a.nino_id === (checkedInNino || previewNinoEntrada).id)}
+                grupo={checkedInGrupo || resolveChildInfantilGrupo(checkedInNino || previewNinoEntrada)}
                 fecha={fechaHoyTexto}
               />
-            )}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
 
       <style dangerouslySetInnerHTML={{__html: `
+        #doxa-thermal-print-area {
+          display: none;
+        }
+
         @media print {
           @page {
-            size: auto;
-            margin: 4mm;
+            size: 100mm 50mm;
+            margin: 0mm !important;
           }
-          body {
-            background: white !important;
-            color: black !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+          @page :left {
+            margin: 0mm !important;
           }
-          body * {
-            visibility: hidden !important;
+          @page :right {
+            margin: 0mm !important;
           }
-          .printable-area, .printable-area * {
-            visibility: visible !important;
+          *, *::before, *::after {
+            box-sizing: border-box !important;
           }
-          .printable-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
+          html, body {
             margin: 0 !important;
             padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            width: 100mm !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+          }
+          /* Ocultar TODO #root, diálogos y portales de UI para evitar saltos o páginas fantasma */
+          #root,
+          [data-radix-portal],
+          [data-radix-focus-guard],
+          .radix-dialog-overlay,
+          .radix-overlay {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+          }
+          /* Mostrar únicamente el área de impresión térmica montada directamente en body */
+          #doxa-thermal-print-area {
             display: block !important;
+            visibility: visible !important;
+            position: static !important;
+            width: 100mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+          }
+          /* Cada página de etiqueta física mide exactamente 100mm x 50mm */
+          .thermal-label-page {
+            width: 100mm !important;
+            height: 50mm !important;
+            max-width: 100mm !important;
+            max-height: 50mm !important;
+            min-width: 100mm !important;
+            min-height: 50mm !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 1.5mm 2mm !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: #ffffff !important;
+          }
+          .thermal-label-page:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
           .shirt-sticker-box {
-            border: 2px solid #000 !important;
+            width: 96mm !important;
+            min-width: 96mm !important;
+            max-width: 96mm !important;
+            height: 47mm !important;
+            min-height: 47mm !important;
+            max-height: 47mm !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+            border: 1.5px solid #000000 !important;
+            border-radius: 6px !important;
             box-shadow: none !important;
+            margin: 0 !important;
+            padding: 4px 6px !important;
+            background: #ffffff !important;
+            color: #000000 !important;
             page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
         }
       `}} />

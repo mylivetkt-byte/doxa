@@ -20,6 +20,7 @@ async function getLogoDataUrl(): Promise<string | null> {
   }
 }
 import type { IsoMinisterioTemplate } from "./isoMinisterioTemplates";
+import { isEstacionTextoPorDefecto } from "./isoMinisterioTemplates";
 
 export interface IsoPdfEvento {
   id: string;
@@ -206,8 +207,12 @@ export async function exportIsoMinisterioPdf(params: {
     const row = [fechaTxt];
     template.estaciones.forEach((est) => {
       const key = normKey(est);
-      const isTexto = (template.estacionesTexto || []).some((e) => normKey(e) === key);
-      row.push(isTexto ? (textos.get(key) || "") : (asigs.get(key) || ""));
+      const isTexto =
+        (template.estacionesTexto || []).some((e) => normKey(e) === key) ||
+        isEstacionTextoPorDefecto(est);
+      const textoVal = textos.get(key) || "";
+      const asigVal = asigs.get(key) || "";
+      row.push(isTexto ? textoVal : (asigVal || textoVal));
     });
     row.push(uniformePorEvento?.get(ev.id) || "");
     row.push(observacionPorEvento?.get(ev.id) || "");

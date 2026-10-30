@@ -183,7 +183,16 @@ export const ISO_TEMPLATES: IsoMinisterioTemplate[] = [
       "Auxiliar 7-11 años",
       "Tema 7-11 años",
     ],
-    estacionesTexto: ["Tema 3-6 años", "Tema 7-11 años"],
+    estacionesTexto: [
+      "Tema 3-6 años",
+      "Tema 7-11 años",
+      "Texto",
+      "Alabanza",
+      "Dinámica",
+      "Decoración",
+      "Objetivo",
+      "Refrigerio"
+    ],
     importante: "Preparar material didáctico y devocional con anticipación. Uniforme Kabod completo.",
     responsabilidades: RESPONSABILIDADES_DEFAULT,
     firmas: FIRMAS_DEFAULT,
@@ -326,6 +335,49 @@ export const ISO_TEMPLATES: IsoMinisterioTemplate[] = [
     firmas: FIRMAS_DEFAULT,
   },
 ];
+
+/** Palabras clave que por su naturaleza corresponden a texto libre a digitar y no a una persona */
+export const TEXT_ESTACION_KEYWORDS = [
+  "texto",
+  "alabanza",
+  "dinamica",
+  "dinámica",
+  "decoracion",
+  "decoración",
+  "objetivo",
+  "refrigerio",
+  "tema",
+  "material",
+  "leccion",
+  "lección",
+  "actividad",
+  "cancion",
+  "canción",
+  "merienda",
+  "comida",
+  "menu",
+  "menú",
+  "canciones",
+  "orden",
+  "mensaje",
+  "versiculo",
+  "versículo",
+  "devocional",
+  "bosquejo",
+  "apuntes",
+  "notas",
+  "grupo",
+];
+
+/** Comprueba si una estación debe ser de texto libre por defecto según su nombre */
+export function isEstacionTextoPorDefecto(estacionNombre: string): boolean {
+  if (!estacionNombre) return false;
+  const n = norm(estacionNombre);
+  return TEXT_ESTACION_KEYWORDS.some((kw) => {
+    const kwNorm = norm(kw);
+    return n.includes(kwNorm);
+  });
+}
 
 /** Normaliza un nombre para comparar (minúsculas, sin tildes ni espacios extra). */
 function norm(s: string): string {

@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { FileDown, Plus, X, Image as ImageIcon, History, Save, FileImage, Trash2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import SearchableCombobox from "@/components/seminario/SearchableCombobox";
-import type { IsoMinisterioTemplate } from "@/lib/isoMinisterioTemplates";
+import { isEstacionTextoPorDefecto, type IsoMinisterioTemplate } from "@/lib/isoMinisterioTemplates";
 import { exportIsoMinisterioPdf, normKey } from "@/lib/exportIsoMinisterioPdf";
 import {
   useProgEventos,
@@ -48,10 +48,16 @@ export default function IsoProgramacionPreview({ open, onOpenChange, ministerio,
   const [adding, setAdding] = useState<{ eventoId: string; estacion: string } | null>(null);
   const [addValue, setAddValue] = useState("");
 
-  const estacionesTextoSet = useMemo(
-    () => new Set((template.estacionesTexto || []).map((e) => normKey(e))),
-    [template.estacionesTexto]
-  );
+  const estacionesTextoSet = useMemo(() => {
+    const explicit = (template.estacionesTexto || []).map((e) => normKey(e));
+    const set = new Set(explicit);
+    (template.estaciones || []).forEach((est) => {
+      if (isEstacionTextoPorDefecto(est)) {
+        set.add(normKey(est));
+      }
+    });
+    return set;
+  }, [template.estaciones, template.estacionesTexto]);
 
   const [historial, setHistorial] = useState<IsoSnapshot[]>([]);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
@@ -455,19 +461,27 @@ export default function IsoProgramacionPreview({ open, onOpenChange, ministerio,
                           const isAdding = adding?.eventoId === e.id && adding?.estacion === est;
                           if (isTexto) {
                             return (
-                              <td key={est} className="border border-black p-1 align-top">
+                              <td key={est} className="border border-black p-1 align-top bg-white">
                                 <textarea
                                   value={textos.get(e.id, `estacion:${key}`)}
                                   onChange={(ev) => textos.setValor(e.id, `estacion:${key}`, ev.target.value)}
-                                  className="w-full min-h-[42px] text-[11px] p-1 border rounded resize-y bg-background"
-                                  placeholder={`${est}…`}
+                                  rows={2}
+                                  className="w-full min-h-[42px] text-[11px] p-1 border rounded resize-y bg-background focus:ring-1 focus:ring-blue-500 font-sans"
+                                  placeholder={`Digitar ${est}…`}
                                 />
                               </td>
                             );
                           }
                           return (
-                            <td key={est} className="border border-black px-1.5 py-1">
+                            <td key={est} className="border border-black px-1.5 py-1 align-top bg-white">
                               <div className="flex flex-col gap-1">
+                                {/* Campo de texto directo (Digitar libremente) */}
+                                <Input
+                                  value={textos.get(e.id, `estacion:${key}`)}
+                                  onChange={(ev) => textos.setValor(e.id, `estacion:${key}`, ev.target.value)}
+                                  className="h-6 text-[10px] px-1.5 bg-background"
+                                  placeholder={`Digitar ${est}…`}
+                                />
                                 {arr.map((c) => (
                                   <Badge key={c.id} variant="secondary" className="justify-between gap-1 font-normal text-[10px] py-0.5">
                                     <span className="truncate">{c.nombre}</span>
@@ -477,22 +491,23 @@ export default function IsoProgramacionPreview({ open, onOpenChange, ministerio,
                                   </Badge>
                                 ))}
                                 {isAdding ? (
-                                  <div className="flex flex-col gap-1">
+                                  <div className="flex flex-col gap-1 p-1 bg-slate-50 rounded border border-slate-200">
                                     <SearchableCombobox
                                       items={personaItems}
                                       value={addValue}
                                       onChange={(id) => { if (id) addPersona(e.id, est, id); }}
-                                      placeholder="Buscar persona…"
+                                      placeholder="Buscar persona en BD…"
                                       width="w-full"
                                     />
                                     <Button size="sm" variant="ghost" className="h-5 text-[10px]" onClick={() => { setAdding(null); setAddValue(""); }}>Cancelar</Button>
                                   </div>
                                 ) : (
                                   <button
-                                    className="text-[10px] text-muted-foreground hover:text-primary flex items-center gap-1"
+                                    className="text-[9.5px] text-muted-foreground hover:text-primary flex items-center gap-0.5 self-start"
                                     onClick={() => { setAdding({ eventoId: e.id, estacion: est }); setAddValue(""); }}
+                                    title="Buscar y vincular persona registrada en la base de datos"
                                   >
-                                    <Plus className="h-3 w-3" /> Agregar
+                                    <Plus className="h-2.5 w-2.5" /> Buscar persona
                                   </button>
                                 )}
                               </div>

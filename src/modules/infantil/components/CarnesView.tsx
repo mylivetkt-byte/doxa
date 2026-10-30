@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   QrCode, Printer, Shield, User, Shirt, Tag,
   AlertTriangle, CheckCircle2, Layers, Search, ScanLine, LogIn, LogOut
@@ -262,7 +263,7 @@ export default function CarnesView() {
       description: "El Check-In ya quedó registrado. Selecciona tu impresora de etiquetas."
     });
     setTimeout(() => {
-      window.print();
+      printEtiquetas10x5cm();
     }, 200);
   };
 
@@ -444,11 +445,11 @@ export default function CarnesView() {
                 <div className="flex flex-col items-center">
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl mb-4 text-xs text-blue-800 flex items-center gap-2 max-w-md w-full">
                     <Shirt className="w-4 h-4 text-blue-600 shrink-0" />
-                    <span><strong>Formato físico:</strong> Tamaño sticker autoadhesivo para pegar en la camiseta del niño.</span>
+                    <span><strong>Formato físico (10 cm × 5 cm):</strong> Etiqueta adhesiva de ropa para el niño.</span>
                   </div>
 
-                  {/* Render del Sticker de Camiseta */}
-                  <div className="printable-single-sticker-wrapper">
+                  {/* Render del Sticker de Camiseta + Etiqueta Padre (ambos 10 cm × 5 cm iguales) */}
+                  <div className="printable-single-sticker-wrapper space-y-3 flex flex-col items-center">
                     <ShirtStickerComponent
                       nino={selectedNino}
                       acudiente={acudientePrincipal}
@@ -457,6 +458,16 @@ export default function CarnesView() {
                       mostrarAlergias={mostrarAlergias}
                       mostrarTelefono={mostrarTelefono}
                     />
+                    {mostrarTalonAcudiente && (
+                      <ParentClaimTagComponent
+                        nino={selectedNino}
+                        acudiente={acudientePrincipal}
+                        grupo={grupoNino}
+                        fecha={fechaHoy}
+                        mostrarAlergias={mostrarAlergias}
+                        mostrarTelefono={mostrarTelefono}
+                      />
+                    )}
                   </div>
 
                   <div className="mt-6 flex gap-3">
@@ -483,7 +494,7 @@ export default function CarnesView() {
                 <div className="flex flex-col items-center">
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl mb-4 text-xs text-amber-900 flex items-center gap-2 max-w-md w-full">
                     <Shield className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span><strong>Protocolo de seguridad:</strong> 1 sticker para la ropa del niño y 1 comprobante para el acudiente.</span>
+                    <span><strong>Protocolo de seguridad (10 cm × 5 cm c/u):</strong> 1 etiqueta para la ropa del niño y 1 etiqueta para el padre/acudiente.</span>
                   </div>
 
                   <div className="printable-duo-wrapper space-y-3">
@@ -499,7 +510,10 @@ export default function CarnesView() {
                       <ParentClaimTagComponent
                         nino={selectedNino}
                         acudiente={acudientePrincipal}
+                        grupo={grupoNino}
                         fecha={fechaHoy}
+                        mostrarAlergias={mostrarAlergias}
+                        mostrarTelefono={mostrarTelefono}
                       />
                     )}
                   </div>
@@ -813,49 +827,43 @@ export default function CarnesView() {
         </DialogContent>
       </Dialog>
 
-      {/* ÁREA DE IMPRESIÓN FÍSICA PURA (Solo visible en @media print) */}
-      <div className="hidden print:block printable-area">
-        {printMode === "sticker" && selectedNino && (
-          <div className="print-single-sticker-container">
-            <ShirtStickerComponent
-              nino={selectedNino}
-              acudiente={acudientePrincipal}
-              grupo={grupoNino}
-              fecha={fechaHoy}
-              mostrarAlergias={mostrarAlergias}
-              mostrarTelefono={mostrarTelefono}
-            />
-          </div>
-        )}
+      {/* PORTAL DE IMPRESIÓN DIRECTO AL BODY (Evita desbordamiento y división entre etiquetas) */}
+      {typeof document !== "undefined" && createPortal(
+        <div id="doxa-thermal-print-area">
+          {selectedNino && printMode !== "planilla" && printMode !== "carne" && (
+            <>
+              <div className="thermal-label-page">
+                <ShirtStickerComponent
+                  nino={selectedNino}
+                  acudiente={acudientePrincipal}
+                  grupo={grupoNino}
+                  fecha={fechaHoy}
+                  mostrarAlergias={mostrarAlergias}
+                  mostrarTelefono={mostrarTelefono}
+                />
+              </div>
+              {mostrarTalonAcudiente && (
+                <div className="thermal-label-page">
+                  <ParentClaimTagComponent
+                    nino={selectedNino}
+                    acudiente={acudientePrincipal}
+                    grupo={grupoNino}
+                    fecha={fechaHoy}
+                    mostrarAlergias={mostrarAlergias}
+                    mostrarTelefono={mostrarTelefono}
+                  />
+                </div>
+              )}
+            </>
+          )}
 
-        {printMode === "duo" && selectedNino && (
-          <div className="print-duo-container space-y-4">
-            <ShirtStickerComponent
-              nino={selectedNino}
-              acudiente={acudientePrincipal}
-              grupo={grupoNino}
-              fecha={fechaHoy}
-              mostrarAlergias={mostrarAlergias}
-              mostrarTelefono={mostrarTelefono}
-            />
-            {mostrarTalonAcudiente && (
-              <ParentClaimTagComponent
-                nino={selectedNino}
-                acudiente={acudientePrincipal}
-                fecha={fechaHoy}
-              />
-            )}
-          </div>
-        )}
-
-        {printMode === "planilla" && (
-          <div className="print-sheet-grid">
-            {ninosPlanilla.map((n) => {
+          {printMode === "planilla" && (
+            ninosPlanilla.map((n) => {
               const rels = (acudientes || []).filter(a => a.nino_id === n.id);
               const acu = rels.find(a => a.es_principal) || rels[0] || null;
               const grp = resolveGrupoForNino(n);
               return (
-                <div key={n.id} className="print-sheet-item">
+                <div key={n.id} className="thermal-label-page">
                   <ShirtStickerComponent
                     nino={n}
                     acudiente={acu}
@@ -867,90 +875,111 @@ export default function CarnesView() {
                   />
                 </div>
               );
-            })}
-          </div>
-        )}
+            })
+          )}
+        </div>,
+        document.body
+      )}
 
-        {printMode === "carne" && selectedNino && (
-          <div className="print-carne-container flex justify-center items-center h-full">
-            <div className="w-[340px] bg-white rounded-2xl border-2 border-slate-300 p-6 text-center">
-              <div className="border-b pb-3 mb-4">
-                <h3 className="font-black text-lg text-slate-900 uppercase">DOXA KIDS</h3>
-                <p className="text-xs text-slate-500">Centro Mundial de Gloria</p>
-              </div>
-              <h2 className="text-2xl font-black text-slate-900 leading-tight">
-                {selectedNino.nombres}
-                <br />
-                {selectedNino.apellidos}
-              </h2>
-              <div className="my-4 flex justify-center">
-                <QRCodeSVG
-                  value={getInfantilQrValue(selectedNino)}
-                  size={156}
-                  level="M"
-                  includeMargin={true}
-                />
-              </div>
-              <p className="font-mono text-xs font-bold text-slate-500">
-                ID: #{getSecurityCode(selectedNino.id)}
-              </p>
-              {selectedNino.detalles?.alergias && (
-                <div className="mt-3 bg-red-50 border border-red-200 text-red-700 text-xs font-bold p-1 rounded">
-                  ALERGIA: {selectedNino.detalles.alergias}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ESTILOS DE IMPRESIÓN FÍSICA PARA ETIQUETAS ADHESIVAS Y TERMICAS */}
+      {/* ESTILOS DE IMPRESIÓN FÍSICA PARA ETIQUETAS ADHESIVAS Y TERMICAS (10 cm × 5 cm) */}
       <style dangerouslySetInnerHTML={{__html: `
+        #doxa-thermal-print-area {
+          display: none;
+        }
+
         @media print {
           @page {
-            size: auto;
-            margin: 4mm;
+            size: 100mm 50mm;
+            margin: 0mm !important;
           }
-          body {
-            background: white !important;
-            color: black !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+          @page :left {
+            margin: 0mm !important;
           }
-          /* Ocultar todo el sistema de la web */
-          body * {
-            visibility: hidden !important;
+          @page :right {
+            margin: 0mm !important;
           }
-          /* Hacer visible únicamente el área designada de impresión */
-          .printable-area, .printable-area * {
-            visibility: visible !important;
+          *, *::before, *::after {
+            box-sizing: border-box !important;
           }
-          .printable-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
+          html, body {
             margin: 0 !important;
             padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            width: 100mm !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+          }
+          /* Ocultar TODO #root, diálogos y portales de UI para evitar saltos o páginas fantasma */
+          #root,
+          [data-radix-portal],
+          [data-radix-focus-guard],
+          .radix-dialog-overlay,
+          .radix-overlay {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+          }
+          /* Mostrar únicamente el área de impresión térmica montada directamente en body */
+          #doxa-thermal-print-area {
             display: block !important;
+            visibility: visible !important;
+            position: static !important;
+            width: 100mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
           }
-          .print-single-sticker-container, .print-duo-container {
-            page-break-inside: avoid !important;
-          }
-          .print-sheet-grid {
-            display: grid !important;
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 6mm !important;
-            page-break-inside: avoid !important;
-          }
-          .print-sheet-item {
+          /* Cada página de etiqueta física mide exactamente 100mm x 50mm */
+          .thermal-label-page {
+            width: 100mm !important;
+            height: 50mm !important;
+            max-width: 100mm !important;
+            max-height: 50mm !important;
+            min-width: 100mm !important;
+            min-height: 50mm !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 1.5mm 2mm !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: #ffffff !important;
+          }
+          .thermal-label-page:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
           .shirt-sticker-box {
-            border: 2px solid #000 !important;
+            width: 96mm !important;
+            min-width: 96mm !important;
+            max-width: 96mm !important;
+            height: 47mm !important;
+            min-height: 47mm !important;
+            max-height: 47mm !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+            border: 1.5px solid #000000 !important;
+            border-radius: 6px !important;
             box-shadow: none !important;
+            margin: 0 !important;
+            padding: 4px 6px !important;
+            background: #ffffff !important;
+            color: #000000 !important;
             page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
         }
       `}} />
@@ -959,8 +988,166 @@ export default function CarnesView() {
 }
 
 // --------------------------------------------------------------------------------
-// COMPONENTE: STICKER ADHESIVO DE CAMISETA (Shirt Sticker Component)
-// Diseñado con alta legibilidad para que el nombre del niño se lea a 3 metros.
+// UTILIDAD DE IMPRESIÓN DIRECTA EN FORMATO EXACTO 10 cm × 5 cm (100 mm × 50 mm)
+// Abre directamente el diálogo nativo de impresión del navegador de forma
+// confiable e inmediata, sin bloqueos de sandbox ni iframes ocultos.
+// --------------------------------------------------------------------------------
+export function printEtiquetas10x5cm() {
+  const prevTitle = document.title;
+  try {
+    // Título vacío temporal para que el navegador no imprima el nombre de la página en la cabecera
+    document.title = "";
+  } catch {}
+
+  try {
+    window.print();
+  } catch (err) {
+    console.error("Error al imprimir etiqueta:", err);
+  } finally {
+    setTimeout(() => {
+      try {
+        document.title = prevTitle;
+      } catch {}
+    }, 1000);
+  }
+}
+
+// --------------------------------------------------------------------------------
+// PLANTILLA BASE UNIFICADA DE ETIQUETA (10 cm × 5 cm)
+// Garantiza que la etiqueta del NIÑO y la etiqueta del PADRE sean 100% iguales
+// en tamaño (10 cm × 5 cm), distribución, tipografía y código QR.
+// --------------------------------------------------------------------------------
+function UnifiedLabel10x5cm({
+  roleType,
+  nino,
+  acudiente,
+  grupo,
+  fecha,
+  mostrarAlergias = true,
+  mostrarTelefono = true
+}: {
+  roleType: "nino" | "padre";
+  nino: any;
+  acudiente?: any;
+  grupo?: any;
+  fecha: string;
+  mostrarAlergias?: boolean;
+  mostrarTelefono?: boolean;
+}) {
+  const securityCode = (nino?.id || "0000").replace(/-/g, "").slice(0, 4).toUpperCase();
+  const alergias = nino?.detalles?.alergias || nino?.alergias;
+  const telefonoContacto =
+    acudiente?.acudiente?.telefono ||
+    acudiente?.acudiente?.whatsapp ||
+    nino?.detalles?.contacto_emergencia ||
+    nino?.telefono;
+  const nombreAcudiente = acudiente?.acudiente?.nombres
+    ? `${acudiente.acudiente.nombres} ${acudiente.acudiente.apellidos || ""}`.trim()
+    : "Padre / Acudiente Autorizado";
+
+  const isNino = roleType === "nino";
+
+  return (
+    <div
+      style={{
+        width: "96mm",
+        height: "47mm",
+        maxWidth: "96mm",
+        maxHeight: "47mm",
+        minWidth: "96mm",
+        minHeight: "47mm",
+        boxSizing: "border-box"
+      }}
+      className="shirt-sticker-box box-border overflow-hidden bg-white rounded-lg border-2 border-dashed border-slate-400 p-2 shadow-sm relative text-slate-900 font-sans flex items-stretch justify-between gap-2"
+    >
+      {/* Columna Izquierda: Cabecera + Nombre + Grupo + Alergias + Acudiente */}
+      <div className="flex-1 min-w-0 flex flex-col justify-between h-full pr-1 overflow-hidden">
+        {/* Cabecera DOXA Kids */}
+        <div className="flex items-center justify-between border-b border-slate-300 pb-0.5 shrink-0">
+          <div className="flex items-center gap-1 min-w-0">
+            <div className="w-3.5 h-3.5 rounded bg-slate-900 flex items-center justify-center text-white font-black text-[8px] shrink-0">
+              DK
+            </div>
+            <div className="truncate flex items-center gap-1">
+              <span className="font-black text-[9px] tracking-wider text-slate-950 uppercase">
+                DOXA KIDS
+              </span>
+              <span className="text-[7.5px] font-black uppercase px-1 py-0.2 rounded bg-slate-900 text-white shrink-0">
+                {isNino ? "ETIQUETA NIÑO · ROPA" : "ETIQUETA PADRE · RETIRO"}
+              </span>
+            </div>
+          </div>
+          <span className="text-[8px] font-bold text-slate-700 shrink-0 ml-1">{fecha}</span>
+        </div>
+
+        {/* Nombre del Niño y Grupo (Idéntico en ambas etiquetas) */}
+        <div className="my-auto py-0.5 min-w-0">
+          <h2 className="text-[15px] font-black uppercase text-slate-950 leading-tight tracking-tight truncate">
+            {nino.nombres}
+          </h2>
+          <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wide truncate">
+            {nino.apellidos}
+          </p>
+
+          <div className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-slate-100 border border-slate-300 text-slate-900 text-[8.5px] font-black uppercase max-w-full">
+            <Tag className="w-2.5 h-2.5 text-slate-800 shrink-0" />
+            <span className="truncate">{grupo?.nombre || "Infantil"}</span>
+          </div>
+        </div>
+
+        {/* Alergia + Contacto Acudiente (Idéntico en ambas etiquetas) */}
+        <div className="space-y-0.5 shrink-0">
+          {mostrarAlergias && (
+            alergias ? (
+              <div className="bg-amber-50 border border-amber-400 text-amber-950 px-1 py-0.2 rounded text-[8px] font-black flex items-center gap-1 leading-tight truncate">
+                <AlertTriangle className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                <span className="truncate">ALERGIA: {alergias}</span>
+              </div>
+            ) : (
+              <div className="bg-slate-50 border border-slate-200 text-slate-700 px-1 py-0.2 rounded text-[7.5px] font-semibold flex items-center gap-1 leading-tight">
+                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                <span>{isNino ? "Sin alergias registradas" : "Presentar QR para retiro"}</span>
+              </div>
+            )
+          )}
+
+          <div className="pt-0.5 border-t border-slate-300 text-[8px] flex justify-between items-center gap-1 text-slate-800 leading-none">
+            <div className="truncate">
+              <span className="font-bold text-slate-950">Acudiente: </span>
+              <span>{nombreAcudiente}</span>
+            </div>
+            {mostrarTelefono && telefonoContacto && (
+              <span className="font-mono font-bold text-slate-950 whitespace-nowrap shrink-0">
+                📞 {telefonoContacto}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Columna Derecha: Código QR + Código de Seguridad */}
+      <div className="shrink-0 flex flex-col items-center justify-between pl-1.5 border-l border-dashed border-slate-300 h-full py-0.5">
+        <div className="bg-white p-0.5 rounded border border-slate-300 shrink-0">
+          <QRCodeSVG
+            value={getInfantilQrValue(nino)}
+            size={76}
+            level="L"
+            includeMargin={false}
+          />
+        </div>
+        <span className="text-[9px] font-mono font-black text-slate-950 bg-slate-100 border border-slate-300 px-1 py-0.2 rounded leading-none tracking-wider">
+          #{securityCode}
+        </span>
+        <span className="text-[6.5px] font-black uppercase tracking-widest text-slate-600 leading-none">
+          {isNino ? "NIÑO (10×5CM)" : "PADRE (10×5CM)"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------------
+// COMPONENTE: ETIQUETA ADHESIVA DE CAMISETA PARA EL NIÑO (10 cm × 5 cm)
 // --------------------------------------------------------------------------------
 export function ShirtStickerComponent({
   nino,
@@ -968,8 +1155,7 @@ export function ShirtStickerComponent({
   grupo,
   fecha,
   mostrarAlergias = true,
-  mostrarTelefono = true,
-  compact = false
+  mostrarTelefono = true
 }: {
   nino: any;
   acudiente?: any;
@@ -979,166 +1165,46 @@ export function ShirtStickerComponent({
   mostrarTelefono?: boolean;
   compact?: boolean;
 }) {
-  const securityCode = (nino?.id || "0000").replace(/-/g, "").slice(0, 4).toUpperCase();
-  const alergias = nino?.detalles?.alergias || nino?.alergias;
-  const telefonoContacto =
-    acudiente?.acudiente?.telefono ||
-    acudiente?.acudiente?.whatsapp ||
-    nino?.detalles?.contacto_emergencia ||
-    nino?.telefono;
-
   return (
-    <div
-      className={`shirt-sticker-box bg-white rounded-2xl border-2 border-dashed border-slate-300 p-4 shadow-sm relative text-slate-900 font-sans transition-all ${
-        compact ? "w-full max-w-[330px]" : "w-full max-w-[375px]"
-      }`}
-    >
-      {/* Indicador visual de etiqueta adhesiva despegable */}
-      <div className="absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1 shadow print:hidden">
-        <Shirt className="w-3.5 h-3.5" />
-      </div>
-
-      {/* Cabecera DOXA Kids */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-2">
-        <div className="flex items-center gap-1.5">
-          <div className="w-5 h-5 rounded-md bg-blue-700 flex items-center justify-center text-white font-black text-[10px] shrink-0">
-            DK
-          </div>
-          <div>
-            <h4 className="font-black text-xs tracking-wider text-blue-900 uppercase leading-none">
-              DOXA KIDS
-            </h4>
-            <p className="text-[9px] text-slate-500 font-semibold leading-none mt-0.5">
-              Centro Mundial de Gloria
-            </p>
-          </div>
-        </div>
-
-        <div className="text-right">
-          <span className="text-[10px] font-bold text-slate-600 block leading-none">{fecha}</span>
-          <span className="text-[9px] font-mono font-black text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded mt-0.5 inline-block">
-            #{securityCode}
-          </span>
-        </div>
-      </div>
-
-      {/* Cuerpo principal: Nombre en tamaño grande + QR con zona de silencio (quiet zone) */}
-      <div className="flex items-start justify-between gap-3 my-2">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-2xl sm:text-3xl font-black uppercase text-slate-950 leading-tight tracking-tight break-words">
-            {nino.nombres}
-          </h2>
-          <p className="text-base font-bold text-slate-700 uppercase tracking-wide truncate">
-            {nino.apellidos}
-          </p>
-
-          {/* Badge del Grupo / Aula */}
-          <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-800 text-[11px] font-black uppercase">
-            <Tag className="w-3 h-3 text-blue-600 shrink-0" />
-            <span className="truncate">{grupo?.nombre || "Infantil"}</span>
-          </div>
-        </div>
-
-        {/* Código QR con margen blanco obligatorio (includeMargin=true) para lectura instantánea */}
-        <div className="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm shrink-0 flex flex-col items-center">
-          <QRCodeSVG
-            value={getInfantilQrValue(nino)}
-            size={compact ? 96 : 112}
-            level="L"
-            includeMargin={true}
-          />
-          <span className="text-[9px] font-mono font-black text-slate-500 mt-0.5 tracking-wider">
-            #{securityCode}
-          </span>
-        </div>
-      </div>
-
-      {/* Alerta Médica / Alergias */}
-      {mostrarAlergias && (
-        alergias ? (
-          <div className="mt-2 bg-amber-50 border-2 border-amber-300 text-amber-900 p-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span className="truncate">ALERGIA: {alergias}</span>
-          </div>
-        ) : (
-          <div className="mt-2 bg-slate-50 border border-slate-200 text-slate-500 px-2 py-0.5 rounded text-[10px] font-medium flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-            <span>Sin alergias conocidas</span>
-          </div>
-        )
-      )}
-
-      {/* Contacto de Emergencia / Acudiente */}
-      <div className="mt-2.5 pt-1.5 border-t border-slate-200 text-[10px] flex justify-between items-center text-slate-600">
-        <div className="truncate pr-1">
-          <span className="font-bold text-slate-800">Acudiente: </span>
-          <span>{acudiente?.acudiente?.nombres ? `${acudiente.acudiente.nombres} (${acudiente.relacion || 'Acudiente'})` : "Padre registrado"}</span>
-        </div>
-        {mostrarTelefono && telefonoContacto && (
-          <div className="font-mono font-bold text-slate-800 whitespace-nowrap shrink-0">
-            📞 {telefonoContacto}
-          </div>
-        )}
-      </div>
-
-      <div className="mt-2 text-center border-t border-dashed border-slate-200 pt-1">
-        <p className="text-[8px] text-slate-400 uppercase tracking-widest font-black">
-          Adhesivo de Camiseta · Pegar en el pecho
-        </p>
-      </div>
-    </div>
+    <UnifiedLabel10x5cm
+      roleType="nino"
+      nino={nino}
+      acudiente={acudiente}
+      grupo={grupo}
+      fecha={fecha}
+      mostrarAlergias={mostrarAlergias}
+      mostrarTelefono={mostrarTelefono}
+    />
   );
 }
 
 // --------------------------------------------------------------------------------
-// COMPONENTE: TALÓN DE RETIRO PARA EL ACUDIENTE (Guardian Claim Tag)
-// Se entrega al padre para comprobar su identidad al recoger al niño.
+// COMPONENTE: ETIQUETA DE RETIRO PARA EL PADRE (10 cm × 5 cm — IGUAL A LA DEL NIÑO)
 // --------------------------------------------------------------------------------
 export function ParentClaimTagComponent({
   nino,
   acudiente,
-  fecha
+  grupo,
+  fecha,
+  mostrarAlergias = true,
+  mostrarTelefono = true
 }: {
   nino: any;
   acudiente?: any;
+  grupo?: any;
   fecha: string;
+  mostrarAlergias?: boolean;
+  mostrarTelefono?: boolean;
 }) {
-  const securityCode = (nino?.id || "0000").replace(/-/g, "").slice(0, 4).toUpperCase();
-
   return (
-    <div className="shirt-sticker-box w-full max-w-[375px] bg-amber-50/70 rounded-2xl border-2 border-dashed border-amber-300 p-3 shadow-sm relative text-slate-900 font-sans">
-      <div className="flex items-center justify-between border-b border-amber-200 pb-1.5 mb-1.5">
-        <div className="flex items-center gap-1.5">
-          <Shield className="w-4 h-4 text-amber-700 shrink-0" />
-          <span className="font-black text-xs uppercase tracking-wider text-amber-950">
-            Talón de Retiro (Padres)
-          </span>
-        </div>
-        <span className="font-mono text-xs font-black text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded">
-          #{securityCode}
-        </span>
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Menor entregado:</p>
-          <p className="text-base font-black text-slate-950 uppercase truncate leading-tight">
-            {nino.nombres} {nino.apellidos}
-          </p>
-          <p className="text-[9px] text-slate-600 mt-1 leading-snug">
-            Presenta este comprobante al maestro para autorizar la salida del menor.
-          </p>
-        </div>
-
-        <div className="shrink-0 bg-white p-1 rounded-lg border border-amber-300">
-          <QRCodeSVG
-            value={getInfantilQrValue(nino)}
-            size={76}
-            level="L"
-            includeMargin={true}
-          />
-        </div>
-      </div>
-    </div>
+    <UnifiedLabel10x5cm
+      roleType="padre"
+      nino={nino}
+      acudiente={acudiente}
+      grupo={grupo}
+      fecha={fecha}
+      mostrarAlergias={mostrarAlergias}
+      mostrarTelefono={mostrarTelefono}
+    />
   );
 }

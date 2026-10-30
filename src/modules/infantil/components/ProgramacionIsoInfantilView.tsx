@@ -38,7 +38,7 @@ import {
 import { toast } from "sonner";
 import SearchableCombobox from "@/components/seminario/SearchableCombobox";
 import IsoTemplateEditorDialog from "@/components/programa/IsoTemplateEditorDialog";
-import { findIsoTemplate, type IsoMinisterioTemplate } from "@/lib/isoMinisterioTemplates";
+import { findIsoTemplate, isEstacionTextoPorDefecto, type IsoMinisterioTemplate } from "@/lib/isoMinisterioTemplates";
 import { exportIsoMinisterioPdf, normKey } from "@/lib/exportIsoMinisterioPdf";
 import {
   useProgMinisterios,
@@ -169,10 +169,16 @@ export default function ProgramacionIsoInfantilView() {
   const [editTplOpen, setEditTplOpen] = useState(false);
   const [selectedEvToCall, setSelectedEvToCall] = useState<string>("");
 
-  const estacionesTextoSet = useMemo(
-    () => new Set((template.estacionesTexto || ["Tema", "Material"]).map((e) => normKey(e))),
-    [template.estacionesTexto]
-  );
+  const estacionesTextoSet = useMemo(() => {
+    const explicit = (template.estacionesTexto || ["Tema", "Material"]).map((e) => normKey(e));
+    const set = new Set(explicit);
+    (template.estaciones || []).forEach((est) => {
+      if (isEstacionTextoPorDefecto(est)) {
+        set.add(normKey(est));
+      }
+    });
+    return set;
+  }, [template.estaciones, template.estacionesTexto]);
 
   const [historial, setHistorial] = useState<IsoSnapshot[]>([]);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
@@ -1044,31 +1050,31 @@ export default function ProgramacionIsoInfantilView() {
                       const textoEst = textos.get(e.id, `estacion:${key}`);
                       if (isTexto) {
                         return (
-                          <td key={est} className="border border-black p-1 align-top">
+                          <td key={est} className="border border-black p-1 align-top bg-white">
                             <textarea
                               value={textoEst}
                               onChange={(ev) =>
                                 textos.setValor(e.id, `estacion:${key}`, ev.target.value)
                               }
-                              className="w-full min-h-[42px] text-[11px] p-1 border rounded resize-y bg-background text-foreground"
-                              placeholder={`${est}…`}
+                              rows={2}
+                              className="w-full min-h-[42px] text-[11px] p-1 border rounded resize-y bg-background text-foreground focus:ring-1 focus:ring-blue-500 font-sans"
+                              placeholder={`Digitar ${est}…`}
                             />
                           </td>
                         );
                       }
                       return (
-                        <td key={est} className="border border-black px-1.5 py-1">
+                        <td key={est} className="border border-black px-1.5 py-1 align-top bg-white">
                           <div className="flex flex-col gap-1">
-                            {(key === "grupo" || Boolean(textoEst)) && (
-                              <Input
-                                value={textoEst}
-                                onChange={(ev) =>
-                                  textos.setValor(e.id, `estacion:${key}`, ev.target.value)
-                                }
-                                className="h-6 text-[10px] px-1.5"
-                                placeholder={`${est} (texto)…`}
-                              />
-                            )}
+                            {/* Campo de texto directo (Digitar libremente) */}
+                            <Input
+                              value={textoEst}
+                              onChange={(ev) =>
+                                textos.setValor(e.id, `estacion:${key}`, ev.target.value)
+                              }
+                              className="h-6 text-[10px] px-1.5 bg-background text-foreground"
+                              placeholder={`Digitar ${est}…`}
+                            />
                             {arr.map((c) => (
                               <Badge
                                 key={c.id}
@@ -1085,14 +1091,14 @@ export default function ProgramacionIsoInfantilView() {
                               </Badge>
                             ))}
                             {isAdding ? (
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-col gap-1 p-1 bg-slate-50 rounded border border-slate-200">
                                 <SearchableCombobox
                                   items={personaItems}
                                   value={addValue}
                                   onChange={(id) => {
                                     if (id) addPersona(e.id, est, id);
                                   }}
-                                  placeholder="Buscar persona…"
+                                  placeholder="Buscar persona en BD…"
                                   width="w-full"
                                 />
                                 <Button
@@ -1109,13 +1115,14 @@ export default function ProgramacionIsoInfantilView() {
                               </div>
                             ) : (
                               <button
-                                className="text-[10px] text-muted-foreground hover:text-primary flex items-center gap-1"
+                                className="text-[9.5px] text-muted-foreground hover:text-primary flex items-center gap-0.5 self-start"
                                 onClick={() => {
                                   setAdding({ eventoId: e.id, estacion: est });
                                   setAddValue("");
                                 }}
+                                title="Buscar y vincular persona registrada en la base de datos"
                               >
-                                <Plus className="h-3 w-3" /> Agregar
+                                <Plus className="h-2.5 w-2.5" /> Buscar persona
                               </button>
                             )}
                           </div>
